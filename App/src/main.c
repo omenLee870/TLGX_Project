@@ -14,6 +14,10 @@
 
 /*------------------------------------------includes--------------------------------------------*/
 #include "main.h"
+#include "sys_config.h"
+#include "bsp_timer.h"
+#include "bsp_gpio.h"
+#include "scheduler.h"
 
 
 /*--------------------------------------------variables-----------------------------------------*/
@@ -49,10 +53,16 @@ int main(void)
 {      
     /* 配置系统时钟 */
     system_clock_config(); 
+    /* 硬件层初始化 */
+    BSP_GPIO_Init();
+    BSP_Timer_Init();  // 心跳
+    /* 服务层初始化 */
+    Scheduler_Init();
 
     while(1)
-    {  
-
+    {
+        /* 任务调度 */
+        Scheduler_Run();
     }
 }
 
