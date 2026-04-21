@@ -18,6 +18,17 @@
 #define GPIO_YXT_PORT       GPIOA
 #define GPIO_YXT_PIN        GPIO_PIN_7
 
+// --- 扫描组供电控制 (COM端 - PMOS控制) ---
+#define GPIO_SCAN_PORT      GPIOB
+#define GPIO_SCAN_A_PIN     GPIO_PIN_1
+#define GPIO_SCAN_B_PIN     GPIO_PIN_2
+#define GPIO_SCAN_C_PIN     GPIO_PIN_3
+
+// --- 大灯控制引脚 ---
+#define GPIO_HEADLIGHT_PORT GPIOB
+#define GPIO_HEADLIGHT_PIN  GPIO_PIN_4  // DD-MCU
+
+
 /* 函数声明 */
 void BSP_GPIO_Init(void);
 

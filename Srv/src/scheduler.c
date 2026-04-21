@@ -10,15 +10,16 @@ extern volatile uint32_t sys_tick_1ms;
  * ------------------------------------------------------------------ */
  
 // 暂时放空函数作为占位符，后续我们会把具体的业务填进去
+extern void Task_DisplayUpdate(void);
 extern void YXT_Decode_Task(void);
-void Task_WorkState(void);
-void Task_DisplayUpdate(void);
+extern void App_UI_Logic_Task(void);
 
 
 static Task_t task_list[] = {
-    {YXT_Decode_Task,       20,  0},// 20ms 解码一次数据包
-    {Task_WorkState,     100, 0},  // 100ms 处理一次主逻辑状态机
-    {Task_DisplayUpdate, 100, 0},  // 100ms 刷新一次屏幕显示
+    /* 任务函数            频率(ms)  上次运行时间 */
+    {Task_DisplayUpdate,   4,        0},  // 物理扫描：4ms切一组灯，保证不闪烁
+    {YXT_Decode_Task,      15,       0},  // 协议解码：15ms解析一次收到的位
+    {App_UI_Logic_Task,    50,       0},  // 业务映射：50ms把速度/挡位算成显存位图
 };
 
 #define TASK_COUNT (sizeof(task_list) / sizeof(task_list[0]))
@@ -50,7 +51,3 @@ void Scheduler_Run(void) {
         }
     }
 }
-
-/* 占位函数实现 (防止编译报错) */
-void Task_WorkState(void) {}
-void Task_DisplayUpdate(void) {}
