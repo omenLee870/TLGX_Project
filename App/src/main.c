@@ -19,6 +19,9 @@
 #include "bsp_gpio.h"
 #include "scheduler.h"
 
+#include "drv_sm16306.h"
+#include "app_ui.h"
+
 
 /*--------------------------------------------variables-----------------------------------------*/
 
@@ -51,17 +54,19 @@ void system_clock_config(void)
 
 int main(void)
 {      
-    /* 配置系统时钟 */
+    /* 配置系统时钟 - 基础环境 */
     system_clock_config(); 
-    /* 硬件层初始化 */
+    
+    /* 硬件层初始化 - 基础 IO 与 定时器 */
     BSP_GPIO_Init();
-    BSP_Timer_Init();  // 心跳
-    /* 服务层初始化 */
+    BSP_Timer_Init(); 
+
+    /* 服务层初始化 - 准备调度器 */
     Scheduler_Init();
 
     while(1)
     {
-        /* 任务调度 */
+        /* 任务调度：此时不再依赖 main 里的初始化顺序 */
         Scheduler_Run();
     }
 }
