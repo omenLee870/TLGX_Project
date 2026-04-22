@@ -17,6 +17,10 @@
 #define SOC_LEVEL_4_LIMIT  80  // 第四格临界点
 #define SOC_LEVEL_5_LIMIT  100 // 第五格临界点
 
+/* --- 滤波与消抖宏参数 (可根据实际手感微调) --- */
+#define SPEED_FILTER_ALPHA    3    // 速度滤波系数 (1-7，值越小越平滑但响应越慢，建议3)
+#define SOC_FILTER_COUNT      15   // 电量消抖帧数 (连续收到15帧相同的电量等级才跳变
+
 static struct {
     uint8_t  step;
     uint16_t low_cnt;
@@ -25,9 +29,57 @@ static struct {
     uint8_t  buf[13];       // 严格存储 13 字节 (DATA0 - DATA12)
     bool     frame_ready;
     bool     old_level;
+
+    // --- 新增滤波变量 ---
+    uint16_t speed_filtered_x10;   // 内部维持 10 倍精度的速度缓存
+    uint8_t  soc_confirm_lvl;      // 正在确认中的目标电量等级
+    uint8_t  soc_confirm_cnt;      // 电量等级确认计数器
 } s_yxt_core = {0};
 
 YXT_Data_t g_yxt_data = {0};
+
+/**
+ * @brief 速度一阶低通滤波算法
+ * 核心公式：$V_{out} = \frac{V_{out} \times (8 - \alpha) + V_{new} \times \alpha}{8}$
+ */
+static uint8_t Apply_Speed_Filter(uint16_t new_speed_x10) {
+    // 采用位移代替除法提高效率
+    s_yxt_core.speed_filtered_x10 = (s_yxt_core.speed_filtered_x10 * (8 - SPEED_FILTER_ALPHA) 
+                                    + new_speed_x10 * SPEED_FILTER_ALPHA) >> 3;
+    
+    return (uint8_t)(s_yxt_core.speed_filtered_x10 / 10);
+}
+
+/**
+ * @brief 电量等级消抖算法
+ */
+static uint8_t Apply_SOC_Filter(uint8_t raw_soc_percent) {
+    uint8_t target_lvl = 0;
+
+    // 1. 区间映射 (0-5级)
+    if (raw_soc_percent == 0) target_lvl = 0;
+    else if (raw_soc_percent <= 20)  target_lvl = 1;
+    else if (raw_soc_percent <= 40)  target_lvl = 2;
+    else if (raw_soc_percent <= 60)  target_lvl = 3;
+    else if (raw_soc_percent <= 80)  target_lvl = 4;
+    else target_lvl = 5;
+
+    // 2. 消抖处理：只有连续多次收到新等级，才更新全局变量
+    if (target_lvl != g_yxt_data.soc) {
+        if (target_lvl == s_yxt_core.soc_confirm_lvl) {
+            if (++s_yxt_core.soc_confirm_cnt >= SOC_FILTER_COUNT) {
+                g_yxt_data.soc = target_lvl;
+                s_yxt_core.soc_confirm_cnt = 0;
+            }
+        } else {
+            s_yxt_core.soc_confirm_lvl = target_lvl;
+            s_yxt_core.soc_confirm_cnt = 0;
+        }
+    } else {
+        s_yxt_core.soc_confirm_cnt = 0;
+    }
+    return g_yxt_data.soc;
+}
 
 void YXT_Sampling_Handler(void) {
     // 硬件反相适配 (根据逻辑分析仪相反波形)
@@ -102,32 +154,17 @@ void YXT_Decode_Task(void) {
     // 判断 DATA5_D6 是否为 1 (1: 实际车速模式, 0: 霍尔脉冲模式)
     uint16_t raw_val = (uint16_t)((s_yxt_core.buf[7] << 8) | s_yxt_core.buf[8]);
     
-    if (s_yxt_core.buf[5] & 0x40) { 
-        // 模式 A：控制器直发速度 (实际车速 * 10) 
-        g_yxt_data.speed = (uint8_t)(raw_val / 10);
-    } else { 
-        // 模式 B：霍尔脉冲模式，应用你的轮径补偿公式
-        if (C_YXT_SPEED > 0) {
-            g_yxt_data.speed = (uint8_t)(raw_val / (C_YXT_SPEED + R_YXT_SPEED_SET - 9));
-        }
-    }
+uint16_t speed_x10;
 
-// 3. SOC 电量格划分逻辑 [cite: 3, 37]
-    uint8_t soc_percent = s_yxt_core.buf[9] & 0x7F; // 提取 0-100% 的数值
-    
-    if (soc_percent == 0) {
-        g_yxt_data.soc = 0; // 0格 (通常对应闪烁)
-    } else if (soc_percent <= SOC_LEVEL_1_LIMIT) {
-        g_yxt_data.soc = 1; // 1格
-    } else if (soc_percent <= SOC_LEVEL_2_LIMIT) {
-        g_yxt_data.soc = 2; // 2格
-    } else if (soc_percent <= SOC_LEVEL_3_LIMIT) {
-        g_yxt_data.soc = 3; // 3格
-    } else if (soc_percent <= SOC_LEVEL_4_LIMIT) {
-        g_yxt_data.soc = 4; // 4格
-    } else {
-        g_yxt_data.soc = 5; // 5格 (满电)
+    if (s_yxt_core.buf[5] & 0x40) { // D6=1: 实际速度模式
+        speed_x10 = raw_val; 
+    } else { // D6=0: 霍尔脉冲模式
+        speed_x10 = (C_YXT_SPEED > 0) ? (raw_val * 10 / C_YXT_SPEED) : 0;
     }
+    g_yxt_data.speed = Apply_Speed_Filter(speed_x10);
+
+    // 2. 电量滤波处理
+    Apply_SOC_Filter(s_yxt_core.buf[9] & 0x7F);
 
     // P档状态：DATA2 的 D1 位
     g_yxt_data.is_parking = (s_yxt_core.buf[2] >> 1) & 0x01;
