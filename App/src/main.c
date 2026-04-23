@@ -18,6 +18,7 @@
 #include "bsp_timer.h"
 #include "bsp_gpio.h"
 #include "scheduler.h"
+#include "bsp_adc.h"
 
 #include "drv_sm16306.h"
 #include "app_ui.h"
@@ -58,8 +59,10 @@ int main(void)
     system_clock_config(); 
     
     /* 硬件层初始化 - 基础 IO 与 定时器 */
+    std_delay_init();
     BSP_GPIO_Init();
     BSP_Timer_Init(); 
+    BSP_ADC_Init();
 
     /* 服务层初始化 - 准备调度器 */
     Scheduler_Init();

@@ -2,6 +2,7 @@
 #include "yxt_proto.h"
 #include "drv_sm16306.h"
 #include "bsp_gpio.h"
+#include "bsp_adc.h"
 
 /* --- 硬件 IO 映射 --- */
 #define T_SEG_A  (1U << 8)
@@ -101,6 +102,30 @@ void App_UI_Logic_Task(void) {
     // 根据你的硬件定义，g_display_buffer[0] 和 [1] 负责数字显示
     g_display_buffer[0] = tens_mask | units_mask; 
     g_display_buffer[1] = tens_mask | units_mask; 
+
+
+ /* --- 这一部分是用来测试的，将adc采集的电压用led显示出来
+    uint32_t adc = bsp_adc_get_adcvalue();
+    
+    // 假设 adc = 220 (mV)，你想显示 "22"
+    uint32_t val = adc / 100; 
+    if (val > 99) val = 99; // 防御性代码，防止超过两位数
+
+    // 提取十位和个位数字 (0-9)
+    uint8_t tens_digit  = (val / 10) % 10;
+    uint8_t units_digit = val % 10;
+
+    // 获取对应的掩码
+    uint16_t tens_mask  = TENS_DIGIT_TABLE[tens_digit];
+    uint16_t units_mask = UNITS_DIGIT_TABLE[units_digit];
+
+    // 因为十位用 8-14 位，个位用 0-6 位，所以必须通过 | 合并成一个 16 位数据
+    // 写入 g_display_buffer[0] (对应 Task_DisplayUpdate 中的 COM A)
+    g_display_buffer[0] = tens_mask | units_mask; 
+    
+    // 如果你的 COM B 也是显示同样的数字，或者用来增加亮度：
+    g_display_buffer[1] = tens_mask | units_mask;
+--- */
 
     /* --- 第二部分：电量与图标显示 (DC 组) --- */
     uint16_t icon_buffer = ICON_KMH; // 默认 KM/H 单位图标常亮

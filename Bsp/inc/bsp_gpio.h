@@ -28,6 +28,10 @@
 #define GPIO_HEADLIGHT_PORT GPIOB
 #define GPIO_HEADLIGHT_PIN  GPIO_PIN_4  // DD-MCU
 
+// --- adc检测引脚 ---
+#define GPIO_ADC_PORT        GPIOA
+#define GPIO_ADC_PIN         GPIO_PIN_4   // 光敏电阻采样
+#define ADC_LIGHT_CH         ADC_CHANNEL_2
 
 /* 函数声明 */
 void BSP_GPIO_Init(void);
